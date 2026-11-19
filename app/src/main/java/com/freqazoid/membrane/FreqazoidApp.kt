@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.freakazoid.watch.ColorMath
 import com.freqazoid.analysis.AnalysisSettings
 import com.freqazoid.analysis.CaptureStatus
 import com.freqazoid.analysis.MonitorModel
@@ -422,7 +423,7 @@ private fun InfoContent(vm: FreqazoidViewModel, status: CaptureStatus, back: () 
     ActionRow("Back") { back() }
     // Level palette key (Waterfall / Spectrum bars / Color Δ).
     Canvas(Modifier.fillMaxWidth().height(10.dp).semantics { contentDescription = "Level palette: black, blue, cyan, yellow, red, white from minus 110 to 0 dBFS" }) {
-        for (i in 0 until 48) drawRect(Color(com.freakazoid.watch.ColorMath.palette(i / 47.0)), Offset(i * size.width / 48, 0f), Size(size.width / 48 + .5f, size.height))
+        for (i in 0 until 48) drawRect(Color(ColorMath.palette(i / 47.0)), Offset(i * size.width / 48, 0f), Size(size.width / 48 + .5f, size.height))
     }
     Text("−110 dBFS … 0 dBFS (Color Δ: 0 … 100 % change)", color = TextSecondary, fontSize = 11.sp, textAlign = TextAlign.Center)
     Text(Readouts.info(status, frame, settings, stats), color = TextPrimary, fontSize = 12.sp, lineHeight = 16.sp)
