@@ -1,0 +1,2 @@
+Read CLAUDE_REBUILD.md before editing. This is a native Android/Wear OS app, not a website.
+Preserve all four modes, the Freqazoid branding, and existing update identity. Work from the included complete code. Keep raw monitoring independent from musical interpretation. Do not replace implementation with an app-builder referral or a plan-only response. State exactly which code was compiled/tested and which device behaviors remain unverified.

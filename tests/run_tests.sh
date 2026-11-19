@@ -28,6 +28,6 @@ t HarmonyEngineTest com.freqazoid.membrane.HarmonyEngineTestKt $P/tests/HarmonyE
 t SafeAreaTest com.freqazoid.membrane.SafeAreaTestKt $P/tests/SafeAreaTest.kt
 t ReadoutsTest com.freqazoid.membrane.ReadoutsTestKt $P/tests/ReadoutsTest.kt
 t PipelineTest com.freqazoid.membrane.PipelineTestKt $P/tests/PipelineTest.kt
-if [ -f "$P/app/src/main/assets/note-atlas.bin" ]; then t NoteShapeTest com.freqazoid.membrane.NoteShapeTestKt $P/tests/NoteShapeTest.kt; java -cp "$O/NoteShapeTest:$O/core:$O/java:$RT" com.freqazoid.membrane.NoteShapeTestKt "$P/app/src/main/assets/note-atlas.bin" || fail=1
+if [ -f "$P/app/src/main/assets/note-atlas.bin" ]; then echo "== NoteShapeTest"; kc $O/NoteShapeTest "$O/core:$O/java" $P/tests/NoteShapeTest.kt && java -cp "$O/NoteShapeTest:$O/core:$O/java:$RT" com.freqazoid.membrane.NoteShapeTestKt "$P/app/src/main/assets/note-atlas.bin" || fail=1
 else echo "== NoteShapeTest SKIPPED (app/src/main/assets/note-atlas.bin not present)"; fi
 [ $fail -eq 0 ] && echo "ALL RUNNABLE TESTS PASSED" || echo "SOME TESTS FAILED"; exit $fail
