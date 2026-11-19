@@ -1,0 +1,53 @@
+# Builds the Freqazoid APK (one APK for both the phone and the Galaxy Watch6) on GitHub's servers.
+# Runs on every push, or manually: Actions tab -> "Build APK" -> "Run workflow".
+# Download: open the finished run -> Artifacts -> "freqazoid-apk".
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check required project files
+        run: |
+          missing=0
+          if ! ls app/src/main/res/drawable*/app_icon.* >/dev/null 2>&1 && ! ls app/src/main/res/mipmap*/app_icon.* >/dev/null 2>&1; then
+            echo "::error::Missing the logo (app/src/main/res/drawable/app_icon.*). Copy the 0.6.0 source over your v0.5.0 project so its res/ folder is included."
+            missing=1
+          fi
+          if [ ! -f debug-signing/freakazoid-debug.jks ]; then
+            echo "::warning::debug-signing/freakazoid-debug.jks not found. Creating a NEW key: this APK will not install over your current Freqazoid until you uninstall the old one."
+            mkdir -p debug-signing
+            keytool -genkeypair -keystore debug-signing/freakazoid-debug.jks -storepass android -keypass android \
+              -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Freqazoid Debug"
+          fi
+          exit $missing
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 35
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug APK
+        run: gradle --no-daemon --stacktrace assembleDebug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: freqazoid-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
