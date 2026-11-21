@@ -1,21 +1,19 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
 }
 android {
-    namespace = "com.freqazoid.membrane"
+    namespace = "com.freqazoid"
     compileSdk = 35
     buildToolsVersion = "35.0.0"
     defaultConfig {
-        // Preserve the installed app's identity for test updates.
+        // Same identity and signing key as every earlier Freqazoid build, so it installs right over them.
         applicationId = "com.freakazoid.watch"
         minSdk = 30
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.6.0"
+        versionCode = 10
+        versionName = "1.0"
     }
-    buildFeatures { compose = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -28,17 +26,4 @@ android {
         keyPassword = "android"
     }
 }
-dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
-    implementation(composeBom)
-    implementation("androidx.activity:activity-compose:1.9.3")
-    implementation("androidx.activity:activity-ktx:1.9.3")
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.foundation:foundation")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-    // Same 2.8.7 lifecycle family as the pinned runtime: retained ViewModel + viewModelScope.
-    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
-}
-
+// No libraries: plain Android View + platform audio, so the watch app stays small.

@@ -1,2 +1,7 @@
-Read CLAUDE_REBUILD.md before editing. This is a native Android/Wear OS app, not a website.
-Preserve all four modes, the Freqazoid branding, and existing update identity. Work from the included complete code. Keep raw monitoring independent from musical interpretation. Do not replace implementation with an app-builder referral or a plan-only response. State exactly which code was compiled/tested and which device behaviors remain unverified.
+Freqazoid is a native Wear OS app for the Galaxy Watch6 (it also runs on phones, for testing only): a
+Chromatic Resonance watch face. Keep it to the seven-octave wheel (C1–B7, 12 color-coded notes per ring,
+notes drawn as their own sound waves around a circle, interval links) and the overlay (layered note waves
++ white combined sound), with the consonance meter, beat visualizer, drum filter and A4 440/432 switch.
+No other graphs or modes. Keep applicationId com.freakazoid.watch and the debug-signing key so updates
+install over the existing app. GitHub Actions builds the APK (latest release). State exactly what was
+compiled/tested and what remains unverified on a real watch.
