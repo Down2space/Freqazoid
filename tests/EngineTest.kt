@@ -69,5 +69,16 @@ fun main() {
         var zc = 0; for (i in w.size - 960 until w.size - 1) if (w[i] <= 0 && w[i + 1] > 0) zc++
         check(zc in 8..10) { "A4 wave crossings in 20 ms = $zc (expect ~8.8)" } }
     println("ok 6 tour: all ${Tour.STEPS.size} steps play and loop; $drawn frames rendered (wheel + overlay); A4 wave shows 8.8 cycles / 20 ms")
+    // 7. Song path: 44.1 kHz stereo-mixed audio resampled to 48 kHz in odd-sized chunks stays continuous and in tune.
+    run { val rs = Resampler(44100, 48000); val out = ArrayList<Float>(); var t = 0L
+        for (chunk in listOf(1000, 37, 4096, 1, 2048, 333, 8000, 4410, 4410, 4410, 4410, 4410, 4410, 4410, 4410, 4410)) {
+            val x = FloatArray(chunk) { kotlin.math.sin(2 * PI * 440 * (t + it) / 44100.0).toFloat() }; t += chunk
+            rs.process(x, chunk) { out += it } }
+        val n = out.size; check(abs(n - t * 48000.0 / 44100) < 3) { "resampled length $n" }
+        var maxJump = 0f; for (i in 1 until n) maxJump = max(maxJump, abs(out[i] - out[i - 1])); check(maxJump < 2 * PI * 440 / 48000 * 1.05) { "discontinuity $maxJump" }
+        val p = Processor(48000); p.setSource(Source.SONG); val arr = out.toFloatArray(); var k = 0
+        while (k + 512 <= arr.size) { p.feed(arr.copyOfRange(k, k + 512), 512); k += 512 }
+        val f = p.newFrame(); p.snapshot(f); check(f.notes.any { it.midi == 69 && abs(it.cents) < 5 }) { "song path notes ${f.notes}" }
+        println("ok 7 song path: 44.1 kHz → 48 kHz across odd chunk sizes, continuous; detected A4 from the song stream") }
     println("PASS: Freqazoid engine — detection, drum filter, chord names, consonance, beats, tour, waves, renderer")
 }

@@ -1,7 +1,7 @@
 package com.freqazoid
 
 /** What the watch face can be listening to. */
-enum class Source(val label: String) { OFF("Sound off"), DEMO("Demo chords"), MIC("Microphone") }
+enum class Source(val label: String) { OFF("Sound off"), DEMO("Demo chords"), MIC("Live mic"), SONG("Song") }
 
 /**
  * Audio-thread side: for DEMO the synth renders the tour (notes come straight from its voices, as in the
@@ -36,7 +36,7 @@ class Processor(val sampleRate: Int) {
         val db = 10 * kotlin.math.log10(e / count.coerceAtLeast(1) + 1e-12)
         level = maxOf(((db + 70) / 60).toFloat().coerceIn(0f, 1f), level * .9f)   // mic level for the "listening" ring
         slots.process(x, count)
-        if (source == Source.MIC) {
+        if (source == Source.MIC || source == Source.SONG) {   // notes are detected from what is heard
             for (i in 0 until count) { ring[ringHead] = x[i]; ringHead = (ringHead + 1) % ring.size }
             sinceHop += count
             if (sinceHop >= hop) {

@@ -12,7 +12,8 @@ import android.view.View
 
 /**
  * The whole app: one round watch face.
- *  Tap = Wheel ⇄ Overlay · Press and hold = Off → Demo chords → Microphone · Bezel (or two-finger tap) = A4 440 ⇄ 432 Hz
+ *  Start screen: Live mic / Song on watch. Then tap = Wheel ⇄ Overlay, Stop button = back to the start screen,
+ *  bezel (or two-finger tap) = A4 440 ⇄ 432 Hz.
  */
 class FreqazoidView(context: Context, private val processor: Processor, private val onSourceRequest: (Source) -> Unit) : View(context) {
     private val renderer = Renderer()
@@ -21,23 +22,18 @@ class FreqazoidView(context: Context, private val processor: Processor, private 
     private val clip = Path()
     private var lastFrame = 0L
     private val handler = Handler(Looper.getMainLooper())
-    private var held = false; private var multi = false
+    private var multi = false
     private var downX = 0f; private var downY = 0f
     private var lastBezel = 0L
-    private val hold = Runnable { held = true; cycleSource() }
 
     init { isFocusable = true; isFocusableInTouchMode = true; contentDescription = "Freqazoid watch face" }
 
     private fun now() = SystemClock.uptimeMillis() / 1000.0
     fun toast(t: String) { renderer.toast(t, now()); invalidate(); handler.postDelayed({ invalidate() }, 2300) }
 
-    private fun cycleSource() {
-        val next = when (processor.source) { Source.OFF -> Source.DEMO; Source.DEMO -> Source.MIC; Source.MIC -> Source.OFF }
-        onSourceRequest(next)
-    }
     fun sourceChanged(s: Source) {
-        toast(s.label)
-        performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); invalidate()
+        if (s == Source.MIC) toast("Live mic\nTap: wheel / overlay")
+        performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM); invalidate()
     }
     fun toggleTuning() {
         Music.a4 = if (Music.a4 == 440.0) 432.0 else 440.0
@@ -62,20 +58,18 @@ class FreqazoidView(context: Context, private val processor: Processor, private 
 
     override fun onTouchEvent(e: MotionEvent): Boolean {
         when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> { held = false; multi = false; downX = e.x; downY = e.y; handler.postDelayed(hold, 600) }
-            MotionEvent.ACTION_POINTER_DOWN -> { handler.removeCallbacks(hold); if (!multi) { multi = true; toggleTuning() } }
-            MotionEvent.ACTION_MOVE -> if (Math.hypot((e.x - downX).toDouble(), (e.y - downY).toDouble()) > 40) handler.removeCallbacks(hold)   // a swipe is not a hold
-            MotionEvent.ACTION_UP -> { handler.removeCallbacks(hold); if (!held && !multi && Math.hypot((e.x - downX).toDouble(), (e.y - downY).toDouble()) < 40) { tap(e.x, e.y); performClick() } }
-            MotionEvent.ACTION_CANCEL -> handler.removeCallbacks(hold)
+            MotionEvent.ACTION_DOWN -> { multi = false; downX = e.x; downY = e.y }
+            MotionEvent.ACTION_POINTER_DOWN -> if (!multi) { multi = true; toggleTuning() }
+            MotionEvent.ACTION_UP -> { if (!multi && Math.hypot((e.x - downX).toDouble(), (e.y - downY).toDouble()) < 40) { tap(e.x, e.y); performClick() } }
         }
         return true
     }
     private fun tap(x: Float, y: Float) {
         when (renderer.hit(x, y, width.toFloat(), height.toFloat(), processor.source)) {
-            Renderer.Hit.DEMO -> onSourceRequest(Source.DEMO)
             Renderer.Hit.MIC -> onSourceRequest(Source.MIC)
+            Renderer.Hit.SONG -> onSourceRequest(Source.SONG)
             Renderer.Hit.STOP -> onSourceRequest(Source.OFF)
-            Renderer.Hit.NONE -> renderer.overlay = !renderer.overlay
+            Renderer.Hit.NONE -> if (processor.source != Source.OFF) renderer.overlay = !renderer.overlay
         }
         invalidate()
     }
