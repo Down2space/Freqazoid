@@ -54,6 +54,40 @@ class Renderer {
         g.fill(0xff050812.toInt())
         if (overlay) drawOverlay(g, f) else drawWheel(g, f, now)
         drawRim(g, notes, now)
+        drawControls(g, f)
+    }
+
+    enum class Hit { DEMO, MIC, STOP, NONE }
+    private fun btnDemoX() = cx - w * .17f; private fun btnMicX() = cx + w * .17f; private fun btnR() = w * .14f
+    private fun stopY() = cy + w * .385f; private fun stopW() = w * .30f; private fun stopH() = w * .10f
+    /** Visible buttons: when sound is off, big Demo / Mic buttons; while on, a Stop button at the bottom. */
+    fun hit(x: Float, y: Float, width: Float, height: Float, source: Source): Hit {
+        layout(width, height)
+        if (source == Source.OFF) {
+            if (hypot(x - btnDemoX(), y - cy) < btnR() * 1.15f) return Hit.DEMO
+            if (hypot(x - btnMicX(), y - cy) < btnR() * 1.15f) return Hit.MIC
+        } else if (abs(x - cx) < stopW() / 2 + w * .03f && abs(y - stopY()) < stopH() / 2 + w * .04f) return Hit.STOP
+        return Hit.NONE
+    }
+    private fun drawControls(g: Gfx, f: Processor.Frame) {
+        if (f.source == Source.OFF) {
+            g.circle(cx, cy, w * .36f, Music.rgba(5, 8, 18, .82f))
+            g.text("Tap to start sound", cx, cy - w * .2f, w * .042f, Music.rgba(220, 228, 245, .95f))
+            for ((x, label, c) in listOf(Triple(btnDemoX(), "Demo", 0xff6ee7d8.toInt()), Triple(btnMicX(), "Mic", 0xffffd166.toInt()))) {
+                g.circle(x, cy, btnR(), (c and 0xffffff) or 0x33000000); g.circle(x, cy, btnR(), c, w * .008f)
+                g.text(label, x, cy, w * .05f, c)
+            }
+            g.text("tap edge: wheel / overlay", cx, cy + w * .21f, w * .03f, Music.rgba(150, 165, 200, .85f), false)
+        } else {
+            val y = stopY(); val bw = stopW(); val bh = stopH()
+            g.rect(cx - bw / 2, y - bh / 2, bw, bh, Music.rgba(60, 20, 34, .9f))
+            g.text("■ Stop · " + (if (f.source == Source.DEMO) "Demo" else "Mic"), cx, y, w * .036f, 0xffffffff.toInt())
+            if (f.source == Source.MIC && f.notes.isEmpty()) {
+                g.text("Listening… play a note", cx, cy, w * .04f, Music.rgba(220, 228, 245, .9f))
+                val lv = f.level.coerceIn(0f, 1f)
+                g.arc(cx, cy, w * .11f, (-PI / 2).toFloat(), (2 * PI * lv).toFloat(), 0xffffd166.toInt(), w * .012f, true)
+            }
+        }
     }
 
     private fun glowStroke(g: Gfx, xs: FloatArray, ys: FloatArray, n: Int, color: Int, width: Float, glow: Float, fill: Int = 0) {

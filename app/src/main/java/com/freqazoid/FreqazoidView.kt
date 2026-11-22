@@ -36,7 +36,7 @@ class FreqazoidView(context: Context, private val processor: Processor, private 
         onSourceRequest(next)
     }
     fun sourceChanged(s: Source) {
-        toast(s.label + if (s == Source.DEMO) "\nBezel: A4 = 440 / 432 Hz" else "")
+        toast(s.label)
         performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); invalidate()
     }
     fun toggleTuning() {
@@ -65,10 +65,19 @@ class FreqazoidView(context: Context, private val processor: Processor, private 
             MotionEvent.ACTION_DOWN -> { held = false; multi = false; downX = e.x; downY = e.y; handler.postDelayed(hold, 600) }
             MotionEvent.ACTION_POINTER_DOWN -> { handler.removeCallbacks(hold); if (!multi) { multi = true; toggleTuning() } }
             MotionEvent.ACTION_MOVE -> if (Math.hypot((e.x - downX).toDouble(), (e.y - downY).toDouble()) > 40) handler.removeCallbacks(hold)   // a swipe is not a hold
-            MotionEvent.ACTION_UP -> { handler.removeCallbacks(hold); if (!held && !multi && Math.hypot((e.x - downX).toDouble(), (e.y - downY).toDouble()) < 40) { renderer.overlay = !renderer.overlay; performClick(); invalidate() } }
+            MotionEvent.ACTION_UP -> { handler.removeCallbacks(hold); if (!held && !multi && Math.hypot((e.x - downX).toDouble(), (e.y - downY).toDouble()) < 40) { tap(e.x, e.y); performClick() } }
             MotionEvent.ACTION_CANCEL -> handler.removeCallbacks(hold)
         }
         return true
+    }
+    private fun tap(x: Float, y: Float) {
+        when (renderer.hit(x, y, width.toFloat(), height.toFloat(), processor.source)) {
+            Renderer.Hit.DEMO -> onSourceRequest(Source.DEMO)
+            Renderer.Hit.MIC -> onSourceRequest(Source.MIC)
+            Renderer.Hit.STOP -> onSourceRequest(Source.OFF)
+            Renderer.Hit.NONE -> renderer.overlay = !renderer.overlay
+        }
+        invalidate()
     }
     override fun performClick(): Boolean { super.performClick(); return true }
 

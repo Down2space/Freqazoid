@@ -30,7 +30,11 @@ class Processor(val sampleRate: Int) {
     fun renderDemo(out: FloatArray, count: Int) { tour.tick(); synth.render(out, count) }
 
     /** Feed captured (MIC) or rendered (DEMO) audio. */
+    @Volatile private var level = 0f
     fun feed(x: FloatArray, count: Int) {
+        var e = 0.0; for (i in 0 until count) e += x[i] * x[i]
+        val db = 10 * kotlin.math.log10(e / count.coerceAtLeast(1) + 1e-12)
+        level = maxOf(((db + 70) / 60).toFloat().coerceIn(0f, 1f), level * .9f)   // mic level for the "listening" ring
         slots.process(x, count)
         if (source == Source.MIC) {
             for (i in 0 until count) { ring[ringHead] = x[i]; ringHead = (ringHead + 1) % ring.size }
@@ -52,12 +56,14 @@ class Processor(val sampleRate: Int) {
         val waves = HashMap<Int, FloatArray>()
         val raw = FloatArray(len)
         var source = Source.OFF
+        var level = 0f
     }
     fun newFrame() = Frame(slots.length)
 
     @Synchronized fun snapshot(f: Frame) {
         f.notes = if (source == Source.OFF) emptyList() else notes
         f.source = source
+        f.level = if (source == Source.OFF) 0f else level
         f.audioTime = slots.samples.toDouble() / sampleRate
         val keep = f.notes.map { it.midi }.toSet(); f.waves.keys.retainAll(keep)
         for (n in f.notes) { val b = f.waves.getOrPut(n.midi) { FloatArray(slots.length) }; if (!slots.copy(n.midi, b)) b.fill(0f) }

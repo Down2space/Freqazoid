@@ -17,7 +17,7 @@ class MainActivity : Activity() {
         view = FreqazoidView(this, processor) { setSource(it) }
         engine.onError = { msg -> runOnUiThread { engine.stop(); view.toast(msg); keepAwake(false) } }
         setContentView(view)
-        view.toast("Tap: wheel / overlay\nHold: demo / mic")
+        view.toast("Bezel: A4 = 440 / 432 Hz")
     }
 
     private fun setSource(s: Source) {
@@ -30,7 +30,7 @@ class MainActivity : Activity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) setSource(Source.MIC)
-        else { engine.stop(); keepAwake(false); view.toast("Mic permission denied\nHold again to retry") }
+        else { engine.stop(); keepAwake(false); view.toast("Mic permission denied\nTap Mic to retry") }
     }
 
     private fun keepAwake(on: Boolean) {

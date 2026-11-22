@@ -18,6 +18,17 @@ fun main(args: Array<String>) {
         }
         ImageIO.write(img, "png", File(out, "$name.png")); println("$name: ${r.chord.name} · ${r.harmony.word} · beat ${r.harmony.beat?.let { String.format("%.2f Hz", it.hz) } ?: "none"}")
     }
+    run { // sound off: the start buttons
+        val p = Processor(48000); val r = Renderer(); val f = p.newFrame(); p.snapshot(f)
+        val img = BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB); val g = Java2dGfx(img); g.clipCircle(); r.draw(g, size.toFloat(), size.toFloat(), f, 0.0, 1 / 30.0)
+        ImageIO.write(img, "png", File(out, "start_off.png")); println("start_off: buttons ${r.hit(size * .33f, size * .5f, size.toFloat(), size.toFloat(), Source.OFF)} / ${r.hit(size * .67f, size * .5f, size.toFloat(), size.toFloat(), Source.OFF)}")
+    }
+    run { // mic on, nothing played yet
+        val p = Processor(48000); p.setSource(Source.MIC); val b = FloatArray(512) { (.01 * kotlin.math.sin(it * .3)).toFloat() }; repeat(20) { p.feed(b, 512) }
+        val r = Renderer(); val f = p.newFrame(); p.snapshot(f)
+        val img = BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB); val g = Java2dGfx(img); g.clipCircle(); r.draw(g, size.toFloat(), size.toFloat(), f, 0.0, 1 / 30.0)
+        ImageIO.write(img, "png", File(out, "mic_listening.png")); println("mic_listening: stop button ${r.hit(size * .5f, size * .885f, size.toFloat(), size.toFloat(), Source.MIC)}")
+    }
     shot("wheel_Cmaj", listOf(60, 64, 67), false)
     shot("wheel_G7", listOf(43, 55, 59, 62, 65), false)
     shot("wheel_fifth_beating", listOf(60, 67), false, just = true, det = 14.0)
