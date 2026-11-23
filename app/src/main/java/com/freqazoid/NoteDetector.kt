@@ -42,17 +42,12 @@ class NoteDetector(val sampleRate: Int, val fps: Double = 30.0) {
     var levelDb = -160.0; private set
     var loud = false; private set
     private val roomDb = FloatArray(bins); private var roomFrames = 0
-    // ---- notes-and-chords strictness ----
-    var nextNoteRatio = .25        // a further note must be at least this fraction as salient as the strongest
-    var overtoneGuard = .6         // a note sitting on an overtone of a stronger note needs this fraction of its salience
-    var steadyCents = 45.0
 
     val detState = FloatArray(128); val detFreq = FloatArray(128); val detConf = FloatArray(128)
     private val stab = IntArray(128); private val stabF = FloatArray(128); private val stPeak = FloatArray(128)
     private val decay = 0.9.pow(60.0 / fps).toFloat()
-    var holdMs = 200.0              // a pitch must hold this long to light up (held notes yes, speech glides no)
-    private val stabN get() = max(3, (holdMs / 1000 * fps).roundToInt())
-    private val stabLow get() = stabN + max(1, (.07 * fps).roundToInt())   // a bit longer for notes below D2
+    private val stabN = max(2, (3 * fps / 60).roundToInt())          // ~50 ms of steady pitch
+    private val stabLow = max(3, (8 * fps / 60).roundToInt())        // ~130 ms for notes below D2
     private val lowCollapse = max(3, (10 * fps / 60).roundToInt())
 
     private fun spectrum(samples: FloatArray) {
@@ -157,18 +152,14 @@ class NoteDetector(val sampleRate: Int, val fps: Double = 30.0) {
             if (h1 == null || h1.rem < .35 * h1.amp) sal = 0.0
             return Score(sal, match, h1, cnt)
         }
-        class Acc(val f: Double, val db: Double, val prom: Double, val cnt: Int, val sal: Double)
+        class Acc(val f: Double, val db: Double, val prom: Double, val cnt: Int)
         val acc = ArrayList<Acc>(); var first = 0.0
         for (it in 0 until 8) {
             var best: Cand? = null; var bs: Score? = null
             for (c in cands) { if (c.dead) continue; val r = score(c); if (r.sal > 0 && (bs == null || r.sal > bs.sal)) { bs = r; best = c } }
             if (best == null || bs == null) break
-            if (first == 0.0) first = bs.sal else if (bs.sal < first * nextNoteRatio) break
+            if (first == 0.0) first = bs.sal else if (bs.sal < first * .09) break
             val fr = bs.h1?.f ?: best.f
-            // A voice's or instrument's own overtones are not extra notes: a candidate on an overtone of a
-            // stronger accepted note must be nearly as strong as that note to count.
-            val onOvertone = acc.any { a -> val r = fr / a.f; val h = r.roundToInt(); h in 2..10 && abs(1200 * ln(r / h) / ln(2.0)) < 35 && bs.sal < a.sal * overtoneGuard }
-            if (onOvertone) { best.dead = true; for (c in cands) if (abs(1200 * ln(c.f / fr) / ln(2.0)) < 60) c.dead = true; continue }
             // Expected overtone level = local average of neighbouring overtones; a partial sticking out
             // above its neighbours is probably another real note and keeps the excess.
             val byH = HashMap<Int, Double>(); for ((pk, h) in bs.match) byH[h] = (byH[h] ?: 0.0) + pk.rem
@@ -182,7 +173,7 @@ class NoteDetector(val sampleRate: Int, val fps: Double = 30.0) {
                 if (pk.rem < .3 * pk.amp) pk.rem = 0.0
             }
             for (c in cands) if (abs(1200 * ln(c.f / fr) / ln(2.0)) < 60) c.dead = true
-            acc += Acc(fr, thr + 20 * log10(bs.sal), bs.h1?.prom ?: 12.0, bs.cnt, bs.sal)
+            acc += Acc(fr, thr + 20 * log10(bs.sal), bs.h1?.prom ?: 12.0, bs.cnt)
         }
         val fresh = FloatArray(128)
         for (a in acc) {
@@ -193,7 +184,7 @@ class NoteDetector(val sampleRate: Int, val fps: Double = 30.0) {
         }
         for (m in Music.MIN_M..Music.MAX_M) {
             if (fresh[m] > 0) {
-                val steady = stab[m] > 0 && abs(1200 * ln(detFreq[m] / stabF[m].toDouble()) / ln(2.0)) < steadyCents
+                val steady = stab[m] > 0 && abs(1200 * ln(detFreq[m] / stabF[m].toDouble()) / ln(2.0)) < 25
                 if (steady) { stab[m] = min(255, stab[m] + 1); stPeak[m] = max(stPeak[m], fresh[m]) } else { stab[m] = 1; stPeak[m] = fresh[m] }
                 stabF[m] = detFreq[m]
                 // a kick drum's boom has a pitch but collapses within ~200 ms; a bass note doesn't
@@ -207,13 +198,10 @@ class NoteDetector(val sampleRate: Int, val fps: Double = 30.0) {
 
     fun reset() { detState.fill(0f); stab.fill(0); smooth.fill(0f); noiseLevelDb = Double.NaN; roomFrames = 0; levelHist.fill(Double.NaN) }
 
-    /** Two lit neighbours a half-step apart are almost always one wavering pitch: keep the stronger. */
-    var mergeHalfSteps = true
     fun notes(): List<Note> {
         val out = ArrayList<Note>()
         for (m in Music.MIN_M..Music.MAX_M) {
             if (detState[m] < .12f) continue
-            if (mergeHalfSteps && (detState[m - 1] > detState[m] || detState[m + 1] >= detState[m])) continue
             val fr = detFreq[m].toDouble()
             out += Note(m, fr, detState[m], detConf[m], 1200 * ln(fr / Music.mtof(m)) / ln(2.0))
         }
