@@ -23,6 +23,7 @@ class Processor(val sampleRate: Int) {
     @Synchronized fun setSource(s: Source) {
         source = s
         synth.stopAll(); detector.reset(); slots.clear(); notes = emptyList()
+        detector.roomGate = s == Source.MIC
         if (s == Source.DEMO) tour.start()
     }
 

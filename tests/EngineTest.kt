@@ -80,5 +80,21 @@ fun main() {
         while (k + 512 <= arr.size) { p.feed(arr.copyOfRange(k, k + 512), 512); k += 512 }
         val f = p.newFrame(); p.snapshot(f); check(f.notes.any { it.midi == 69 && abs(it.cents) < 5 }) { "song path notes ${f.notes}" }
         println("ok 7 song path: 44.1 kHz → 48 kHz across odd chunk sizes, continuous; detected A4 from the song stream") }
+    // 8. Quiet room (hum + rumble, −52 dBFS) shows nothing; one sung note (vibrato, strong overtones) shows one note.
+    run { val p = Processor(48000); p.setSource(Source.MIC); val rnd = Random(9); val b = FloatArray(512); var t = 0L; var lp = 0.0
+        fun room(i: Long): Double { lp += .02 * ((rnd.nextDouble() * 2 - 1) - lp); return .012 * lp * 8 + .0015 * sin(2 * PI * 60 * i / 48000.0) + .0008 * sin(2 * PI * 120 * i / 48000.0) }
+        var lit = 0; var frames = 0
+        repeat((6 * 48000) / 512) { for (k in b.indices) b[k] = room(t + k).toFloat(); t += 512; p.feed(b, 512)
+            if (t > 48000) { val f = p.newFrame(); p.snapshot(f); frames++; if (f.notes.isNotEmpty()) lit++ } }
+        check(lit == 0) { "quiet room lit notes in $lit of $frames frames" }
+        val counts = HashMap<Int, Int>(); var multi = 0; var sung = 0; var ph = 0.0
+        repeat((5 * 48000) / 512) { for (k in b.indices) { val i = t + k; val tt = i / 48000.0
+                val f0 = 110.0 * 2.0.pow(.3 * sin(2 * PI * 5.5 * tt) / 12); ph += 2 * PI * f0 / 48000
+                var v = 0.0; for (h in 1..12) v += (if (h in 3..5) 1.6 else 1.0) / h * sin(h * ph); b[k] = (.06 * v + room(i)).toFloat() }
+            t += 512; p.feed(b, 512)
+            if (t % 3072 == 0L) { val f = p.newFrame(); p.snapshot(f); if (f.notes.isNotEmpty()) { sung++; if (f.notes.size > 1) multi++; f.notes.forEach { counts[it.midi] = (counts[it.midi] ?: 0) + 1 } } } }
+        check(sung > 0 && multi.toDouble() / sung < .1) { "sung note showed extra notes in $multi of $sung frames: $counts" }
+        check(counts.maxBy { it.value }.key == 45) { "sung A2 read as $counts" }
+        println("ok 8 room: quiet room with hum -> 0 notes; one sung A2 with vibrato -> single note in ${100 - 100 * multi / sung}% of lit frames") }
     println("PASS: Freqazoid engine — detection, drum filter, chord names, consonance, beats, tour, waves, renderer")
 }
