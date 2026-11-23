@@ -6,14 +6,13 @@ import android.graphics.Path
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
 
 /**
  * The whole app: one round watch face.
  *  Start screen: Live mic / Song on watch. Then tap = Wheel ⇄ Overlay, Stop button = back to the start screen,
- *  bezel (or two-finger tap) = A4 440 ⇄ 432 Hz.
+ *  Tuning is standard A4 = 440 Hz.
  */
 class FreqazoidView(context: Context, private val processor: Processor, private val onSourceRequest: (Source) -> Unit) : View(context) {
     private val renderer = Renderer()
@@ -22,9 +21,7 @@ class FreqazoidView(context: Context, private val processor: Processor, private 
     private val clip = Path()
     private var lastFrame = 0L
     private val handler = Handler(Looper.getMainLooper())
-    private var multi = false
     private var downX = 0f; private var downY = 0f
-    private var lastBezel = 0L
 
     init { isFocusable = true; isFocusableInTouchMode = true; contentDescription = "Freqazoid watch face" }
 
@@ -34,10 +31,6 @@ class FreqazoidView(context: Context, private val processor: Processor, private 
     fun sourceChanged(s: Source) {
         if (s == Source.MIC) toast("Live mic\nTap: wheel / overlay")
         performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM); invalidate()
-    }
-    fun toggleTuning() {
-        Music.a4 = if (Music.a4 == 440.0) 432.0 else 440.0
-        toast("A4 = ${Music.a4.toInt()} Hz")
     }
 
     override fun onAttachedToWindow() { super.onAttachedToWindow(); requestFocus(); renderer.wavePoints = if (resources.configuration.isScreenRound) 300 else 420 }
@@ -58,9 +51,8 @@ class FreqazoidView(context: Context, private val processor: Processor, private 
 
     override fun onTouchEvent(e: MotionEvent): Boolean {
         when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> { multi = false; downX = e.x; downY = e.y }
-            MotionEvent.ACTION_POINTER_DOWN -> if (!multi) { multi = true; toggleTuning() }
-            MotionEvent.ACTION_UP -> { if (!multi && Math.hypot((e.x - downX).toDouble(), (e.y - downY).toDouble()) < 40) { tap(e.x, e.y); performClick() } }
+            MotionEvent.ACTION_DOWN -> { downX = e.x; downY = e.y }
+            MotionEvent.ACTION_UP -> { if (e.pointerCount == 1 && Math.hypot((e.x - downX).toDouble(), (e.y - downY).toDouble()) < 40) { tap(e.x, e.y); performClick() } }
         }
         return true
     }
@@ -74,12 +66,4 @@ class FreqazoidView(context: Context, private val processor: Processor, private 
         invalidate()
     }
     override fun performClick(): Boolean { super.performClick(); return true }
-
-    override fun onGenericMotionEvent(e: MotionEvent): Boolean {
-        if (e.action == MotionEvent.ACTION_SCROLL && e.isFromSource(InputDevice.SOURCE_ROTARY_ENCODER)) {
-            if (e.eventTime - lastBezel > 400) { lastBezel = e.eventTime; toggleTuning() }
-            return true
-        }
-        return super.onGenericMotionEvent(e)
-    }
 }

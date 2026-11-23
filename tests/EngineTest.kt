@@ -5,8 +5,8 @@ import kotlin.random.Random
 
 fun cents(a: Double, b: Double) = 1200 * ln(b / a) / ln(2.0)
 /** Warm-timbre test chord at real-time rate through the MIC path (detector), returns detected midis. */
-fun detect(midis: List<Int>, seconds: Double = 1.0, a4: Double = 440.0, drums: Boolean = false, noise: Double = 0.0): List<Note> {
-    Music.a4 = a4
+fun detect(midis: List<Int>, seconds: Double = 1.0, drums: Boolean = false, noise: Double = 0.0): List<Note> {
+    val a4 = 440.0
     val p = Processor(48000); p.setSource(Source.MIC)
     val rnd = Random(4); val buf = FloatArray(512); var i = 0L
     val fs = midis.map { a4 * 2.0.pow((it - 69) / 12.0) }
@@ -18,21 +18,20 @@ fun detect(midis: List<Int>, seconds: Double = 1.0, a4: Double = 440.0, drums: B
             buf[k] = v.toFloat() }
         p.feed(buf, buf.size); i += buf.size
     }
-    val f = p.newFrame(); p.snapshot(f); Music.a4 = 440.0; return f.notes
+    val f = p.newFrame(); p.snapshot(f); return f.notes
 }
-fun n(m: Int, s: Float = 1f, a4: Double = 440.0) = Note(m, a4 * 2.0.pow((m - 69) / 12.0), s, 1f, 0.0)
+fun n(m: Int, s: Float = 1f) = Note(m, 440.0 * 2.0.pow((m - 69) / 12.0), s, 1f, 0.0)
 
 fun main() {
-    // 1. Detection: chords, octave shift, major→minor, every octave, 432 tuning.
+    // 1. Detection: chords, octave shift, major→minor, every octave, A4 = 440 Hz.
     for (ch in listOf(listOf(60, 64, 67), listOf(72, 76, 79), listOf(60, 63, 67), listOf(48, 55, 64), listOf(55, 59, 62, 65))) {
         val got = detect(ch).map { it.midi }
         check(got.containsAll(ch)) { "missed notes in $ch: got $got" }
         check(got.size <= ch.size + 1) { "too many false notes for $ch: $got" }
     }
     for (m in listOf(36, 48, 60, 72, 84, 96)) { val got = detect(listOf(m)).map { it.midi }; check(got.firstOrNull() == m && got.size <= 2) { "single $m -> $got" } }
-    val t432 = detect(listOf(69), a4 = 432.0); check(t432.any { it.midi == 69 && abs(it.cents) < 5 }) { "432 tuning: $t432" }
-    val at440 = detect(listOf(69).map { it }, a4 = 440.0).first(); check(abs(at440.freq - 440) < 1.0)
-    println("ok 1 detection: triads, octave shift, minor, G7, C2–C7 singles, A4=432 (A reads ${"%.1f".format(t432.first { it.midi == 69 }.freq)} Hz)")
+    val a = detect(listOf(69)).first(); check(a.midi == 69 && abs(a.freq - 440) < 1.0 && abs(a.cents) < 3) { "A4: $a" }
+    println("ok 1 detection: triads, octave shift, minor, G7, C2–C7 singles, A4 reads ${"%.1f".format(a.freq)} Hz")
     // 2. Drum filter: kick + hat bursts alone light nothing steady; with a chord the chord survives.
     val drumsOnly = detect(emptyList(), 2.0, drums = true); check(drumsOnly.size <= 1) { "drums produced notes: ${drumsOnly.map { it.midi }}" }
     val withDrums = detect(listOf(60, 64, 67), 2.0, drums = true).map { it.midi }; check(withDrums.containsAll(listOf(60, 64, 67))) { "chord lost under drums: $withDrums" }

@@ -13,8 +13,8 @@ object Music {
     const val MIN_M = 24   // C1
     const val MAX_M = 107  // B7
 
-    /** Reference tuning: A4 = 440 or 432 Hz (switch with the bezel). */
-    @Volatile var a4 = 440.0
+    /** Reference tuning: A4 = 440 Hz (standard). */
+    const val a4 = 440.0
     fun mtof(m: Int) = a4 * 2.0.pow((m - 69) / 12.0)
     fun mtof(m: Double) = a4 * 2.0.pow((m - 69) / 12.0)
     fun ftom(f: Double) = 69 + 12 * ln(f / a4) / ln(2.0)

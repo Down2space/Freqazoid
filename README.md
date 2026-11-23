@@ -10,8 +10,8 @@ One round watch face (the same face shows on a phone for testing).
 - **Rim:** consonance gauge across the top (red harsh → teal very smooth), beat pulse around the edge, and
   the chord name, smoothness word and beat speed in the middle.
 
-**Controls:** tap = Wheel ⇄ Overlay · press and hold = Off → Demo chords → Microphone · turn the bezel
-(or two-finger tap on a phone) = A4 440 ⇄ 432 Hz. Leaving the app stops sound; nothing restarts on its own.
+**Controls:** first screen = Live mic or Song on watch · tap = Wheel ⇄ Overlay · Stop = back to the first
+screen. Tuning is standard A4 = 440 Hz. Leaving the app stops sound; nothing restarts on its own.
 
 Detection: harmonic-series note detector from the web version, its drum filter (pitch must hold steady),
 plus a recency gate (a note must still sound in the newest 85 ms) and a noise gate (spectral flatness).
