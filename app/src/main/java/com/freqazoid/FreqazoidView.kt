@@ -8,10 +8,12 @@ import android.os.Looper
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
+import kotlin.math.abs
 
 /**
  * The whole app: one round watch face.
- *  Start screen: Live mic / Song on watch. Then tap = Wheel ⇄ Overlay, Stop button = back to the start screen,
+ *  Start screen: Live mic / Song on watch. Then tap = Wheel ⇄ Overlay, swipe left = Stars screen (swipe right = back),
+ *  Stop button = back to the start screen,
  *  Tuning is standard A4 = 440 Hz.
  */
 class FreqazoidView(context: Context, private val processor: Processor, private val onSourceRequest: (Source) -> Unit) : View(context) {
@@ -29,7 +31,7 @@ class FreqazoidView(context: Context, private val processor: Processor, private 
     fun toast(t: String) { renderer.toast(t, now()); invalidate(); handler.postDelayed({ invalidate() }, 2300) }
 
     fun sourceChanged(s: Source) {
-        if (s == Source.MIC) toast("Live mic\nTap: wheel / overlay")
+        if (s != Source.OFF) toast(if (renderer.screen == 0) "Tap: wheel / overlay\nSwipe ← for stars" else "Swipe → for the wheel")
         performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM); invalidate()
     }
 
@@ -52,7 +54,11 @@ class FreqazoidView(context: Context, private val processor: Processor, private 
     override fun onTouchEvent(e: MotionEvent): Boolean {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> { downX = e.x; downY = e.y }
-            MotionEvent.ACTION_UP -> { if (e.pointerCount == 1 && Math.hypot((e.x - downX).toDouble(), (e.y - downY).toDouble()) < 40) { tap(e.x, e.y); performClick() } }
+            MotionEvent.ACTION_UP -> {
+                val dx = e.x - downX; val dy = e.y - downY
+                // swipe left → stars screen, swipe right → wheel
+                if (abs(dx) > width * .18f && abs(dx) > abs(dy) * 1.3f) { renderer.screen = if (dx < 0) 1 else 0; performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK); invalidate(); return true }
+                if (e.pointerCount == 1 && Math.hypot((e.x - downX).toDouble(), (e.y - downY).toDouble()) < 40) { tap(e.x, e.y); performClick() } }
         }
         return true
     }
@@ -61,7 +67,7 @@ class FreqazoidView(context: Context, private val processor: Processor, private 
             Renderer.Hit.MIC -> onSourceRequest(Source.MIC)
             Renderer.Hit.SONG -> onSourceRequest(Source.SONG)
             Renderer.Hit.STOP -> onSourceRequest(Source.OFF)
-            Renderer.Hit.NONE -> if (processor.source != Source.OFF) renderer.overlay = !renderer.overlay
+            Renderer.Hit.NONE -> if (processor.source != Source.OFF && renderer.screen == 0) renderer.overlay = !renderer.overlay
         }
         invalidate()
     }

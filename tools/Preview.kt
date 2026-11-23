@@ -6,10 +6,10 @@ import javax.imageio.ImageIO
 fun main(args: Array<String>) {
     val out = File(args.getOrElse(0) { "previews" }).apply { mkdirs() }
     val size = args.getOrElse(1) { "450" }.toInt()
-    fun shot(name: String, chord: List<Int>, overlay: Boolean, just: Boolean = false, det: Double = 0.0, seconds: Double = 1.2) {
+    fun shot(name: String, chord: List<Int>, overlay: Boolean, just: Boolean = false, det: Double = 0.0, seconds: Double = 1.2, stars: Boolean = false) {
         val p = Processor(48000); p.setSource(Source.DEMO)
         p.synth.just = just; p.synth.play(chord, hold = 10.0, detTop = det)
-        val r = Renderer().apply { this.overlay = overlay }
+        val r = Renderer().apply { this.overlay = overlay; if (stars) screen = 1 }
         val frame = p.newFrame(); val buf = FloatArray(512); var t = 0.0; var nextDraw = 0.0
         val img = BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB)
         while (t < seconds) {
@@ -32,6 +32,10 @@ fun main(args: Array<String>) {
     shot("tuner_sharp_A3", listOf(57), false, det = 18.0)
     shot("tuner_intune_A3", listOf(57), false, det = 3.0)
     shot("tuner_flat_A3", listOf(57), false, det = -35.0)
+    shot("stars_C4_perfect", listOf(60), false, stars = true)
+    shot("stars_C4_sharp", listOf(60), false, det = 22.0, stars = true)
+    shot("stars_C4_flat", listOf(60), false, det = -40.0, stars = true)
+    shot("stars_Cmaj", listOf(60, 64, 67), false, stars = true)
     shot("wheel_Cmaj", listOf(60, 64, 67), false)
     shot("wheel_G7", listOf(43, 55, 59, 62, 65), false)
     shot("wheel_fifth_beating", listOf(60, 67), false, just = true, det = 14.0)

@@ -99,5 +99,23 @@ fun main() {
             val ratio = r.lastSeamGap() / max(1e-3f, r.lastMaxStep()); worst = max(worst, ratio)
             check(ratio < 1.5f) { "seam on midi $m det $det: gap ${r.lastSeamGap()} vs step ${r.lastMaxStep()}" } }
         println("ok 9 seamless stars: start meets end for C2–C7, in tune, +12¢ and −37¢ (worst seam = %.2f × a normal step)".format(worst)) }
+    // 10. Stars screen: a perfect note stands still and matches; a sharp/flat note drifts (opposite ways); chords overlap.
+    run { val img = BufferedImage(450, 450, BufferedImage.TYPE_INT_ARGB)
+        fun drift(midi: Int, det: Double): Pair<Double, Int> {
+            val q = Processor(48000); q.setSource(Source.DEMO); q.synth.play(listOf(midi), hold = 8.0, detTop = det); val b = FloatArray(512)
+            val r = Renderer().apply { screen = 1 }; val f = q.newFrame(); val angles = ArrayList<Double>(); var t = 0.0; var next = .5
+            while (t < 2.0) { q.synth.render(b, 512); q.feed(b, 512); t += 512 / 48000.0
+                if (t >= next) { next += 1 / 30.0; q.snapshot(f); r.draw(Java2dGfx(img), 450f, 450f, f, t, 1 / 30.0); angles += r.lastStarAngle } }
+            val k = max(1, (0.02 * Music.mtof(midi)).roundToInt()); val period = 2 * PI / k; var total = 0.0
+            for (i in 1 until angles.size) { var d = (angles[i] - angles[i - 1]) % period; if (d > period / 2) d -= period; if (d < -period / 2) d += period; total += d }
+            return total / ((angles.size - 1) / 30.0) to r.lastMatch
+        }
+        for (m in listOf(48, 60, 69, 72)) { val (rate, match) = drift(m, 0.0); check(abs(rate) < .05 && match >= 98) { "in-tune midi $m drifts $rate rad/s, match $match" } }
+        val (sharp, ms) = drift(60, 20.0); val (flat, mf) = drift(60, -20.0)
+        check(abs(sharp) > 1.0 && abs(flat) > 1.0 && sign(sharp) != sign(flat)) { "drift sharp $sharp flat $flat" }
+        check(ms in 55..65 && mf in 55..65) { "match ±20¢: $ms $mf" }
+        val q = Processor(48000); q.setSource(Source.DEMO); q.synth.play(listOf(60, 64, 67), hold = 5.0); val b = FloatArray(512); repeat(60) { q.synth.render(b, 512); q.feed(b, 512) }
+        val f = q.newFrame(); q.snapshot(f); val r = Renderer().apply { screen = 1 }; r.draw(Java2dGfx(img), 450f, 450f, f, 1.0, 1 / 30.0); check(r.lastMatch == -1 && r.chord.name == "C")
+        println("ok 10 stars screen: perfect C3/C4/A4/C5 stand still (match ≥98%%); C4 +20¢ turns %.1f rad/s %s, −20¢ %.1f rad/s %s (60%% match); C major overlaps".format(abs(sharp), if (sharp > 0) "clockwise" else "counter-clockwise", abs(flat), if (flat > 0) "clockwise" else "counter-clockwise")) }
     println("PASS: Freqazoid engine — detection, drum filter, chord names, consonance, beats, tour, waves, renderer")
 }

@@ -1,0 +1,7 @@
+<resources>
+    <!-- Swipe right switches screens inside Freqazoid instead of closing the app; the back button still exits. -->
+    <style name="FreqazoidTheme" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowSwipeToDismiss">false</item>
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+</resources>

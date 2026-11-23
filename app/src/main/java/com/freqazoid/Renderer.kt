@@ -24,6 +24,8 @@ interface Gfx {
  */
 class Renderer {
     var overlay = false
+    /** 0 = wheel / overlay, 1 = stars (swipe to switch). */
+    var screen = 0
     val harmony = Harmony()
     private class Ripple(val midi: Int, val pc: Int, val oct: Int, val t0: Double, val r: Float)
     private val ripples = ArrayList<Ripple>()
@@ -72,9 +74,88 @@ class Renderer {
         harmony.update(notes, dt)
         updateTuner(notes, dt)
         g.fill(0xff050812.toInt())
-        if (overlay) drawOverlay(g, f) else drawWheel(g, f, now)
-        drawRim(g, notes, now)
+        if (screen == 1) drawStars(g, f, dt) else { if (overlay) drawOverlay(g, f) else drawWheel(g, f, now); drawRim(g, notes, now) }
+        drawToast(g, now)
         drawControls(g, f)
+        drawPageDots(g)
+    }
+
+    private fun drawToast(g: Gfx, now: Double) {
+        if (now < toastUntil) { val ts = w * .034f; val lines = toastText.split('\n')
+            lines.forEachIndexed { i, line -> val tw = g.textWidth(line, ts); val y = cy - w / 2 + w * (.76f + .062f * i)
+                g.rect(cx - tw / 2 - 10, y - w * .031f, tw + 20, w * .062f, Music.rgba(17, 26, 48, .9f))
+                g.text(line, cx, y, ts, 0xff6ee7d8.toInt()) } }
+    }
+    private fun drawPageDots(g: Gfx) {
+        val y = cy + w * .465f
+        for (k in 0..1) g.circle(cx + (k - .5f) * w * .045f, y, w * .009f, if (k == screen) 0xffffffff.toInt() else Music.rgba(150, 165, 200, .45f))
+    }
+
+    // ---------------- stars screen ----------------
+    private var ghostAngle = 0.0; private var ghostMidi = -1
+    private val gx = FloatArray(361); private val gy = FloatArray(361)
+    var lastMatch = -1; private set          // for tests: 0..100 or −1
+    var lastStarAngle = 0.0; private set     // for tests: user star's lobe orientation
+    /**
+     * Your star is your real wave looped over exactly k waves of the PERFECT pitch of the nearest note
+     * (k ≈ 20 ms, as on the wheel). On pitch, it closes and stands still with k points; sharp it turns
+     * clockwise, flat counter-clockwise. The thin white target star (k points) follows your star's
+     * orientation slowly, so on pitch it sits right on top of yours and off pitch yours drifts away.
+     */
+    private fun drawStars(g: Gfx, f: Processor.Frame, dt: Double) {
+        val vis = f.notes.filter { it.strength > .06f }.sortedByDescending { it.strength }
+        val r0 = w * .23f
+        if (vis.isEmpty()) { if (f.source != Source.OFF) g.text("sing or play a note", cx, cy, w * .04f, Music.rgba(150, 165, 200, .7f), false); ghostMidi = -1; lastMatch = -1; return }
+        val top = vis[0]
+        val single = vis.size == 1 || vis[1].strength < top.strength * .35f
+        if (!single) {
+            // several notes: their stars overlap, each in its own colour
+            ghostMidi = -1; lastMatch = -1
+            g.additive(true)
+            for (n in vis.take(6).reversed()) {
+                val buf = f.waves[n.midi] ?: continue
+                waveRing(buf, SAMPLE_RATE, f.audioTime, cx, cy, r0, min(w * .1f, w * (.03f + .08f * n.strength)), n.freq)
+                glowStroke(g, px, py, wavePoints + 1, Music.colO(n.pc, n.oct, .9f, 14f), 2.2f, 9f)
+            }
+            g.additive(false)
+            val ts = w * .05f; val tw = g.textWidth(chord.name, ts)
+            g.rect(cx - tw / 2 - 8, cy - w * .035f, tw + 16, w * .07f, Music.rgba(0, 0, 0, .55f)); g.text(chord.name, cx, cy, ts, 0xffffffff.toInt())
+            return
+        }
+        val buf = f.waves[top.midi] ?: return
+        val f0 = Music.mtof(top.midi); val k = max(1, (tSlice * f0).roundToInt())
+        val loop = k * SAMPLE_RATE / f0                                // samples in k perfect waves
+        val l = buf.size; val nNow = f.audioTime * SAMPLE_RATE; val posNow = nNow % loop
+        val m = wavePoints
+        var mx = 1e-6f; for (i in (l - 1 - loop.toInt()).coerceAtLeast(0) until l) mx = max(mx, abs(buf[i]))
+        // your star, anchored to the perfect pitch's clock (points ordered by angle)
+        var sre = 0.0; var sim = 0.0
+        val vals = FloatArray(m + 1)
+        for (j in 0..m) {
+            val th = 2 * PI * j / m
+            val back = ((posNow - th / (2 * PI) * loop) % loop + loop) % loop      // how long ago that angle was written
+            val pos = (l - 1) - back; val i0 = pos.toInt().coerceIn(0, l - 2); val fr = (pos - i0).toFloat()
+            val v = (buf[i0] + (buf[i0 + 1] - buf[i0]) * fr) / mx; vals[j] = v
+            if (j < m) { sre += v * cos(k * th); sim += v * sin(k * th) }
+        }
+        val lobe = atan2(sim, sre) / k                                   // where your star's points face
+        lastStarAngle = -lobe   // on screen the star is mirrored so that sharp turns clockwise
+        if (ghostMidi != top.midi) { ghostAngle = lobe; ghostMidi = top.midi }
+        else { val period = 2 * PI / k; var d = (lobe - ghostAngle) % period; if (d > period / 2) d -= period; if (d < -period / 2) d += period
+            ghostAngle += d * min(1.0, dt / .7) }
+        val amp = w * .075f; val rot = (-PI / 2).toFloat()
+        // target: the perfect k-point star
+        for (j in 0..360) { val th = 2 * PI * j / 360; val rr = r0 + amp * cos(k * (th - ghostAngle)).toFloat()
+            gx[j] = cx + rr * cos(rot - th).toFloat(); gy[j] = cy + rr * sin(rot - th).toFloat() }
+        g.poly(gx, gy, 361, Music.rgba(255, 255, 255, .55f), 2f)
+        val cents = tuner?.second ?: top.cents
+        for (j in 0..m) { val th = rot - (2 * PI * j / m).toFloat(); val rr = r0 + amp * vals[j]; px[j] = cx + rr * cos(th); py[j] = cy + rr * sin(th) }
+        g.additive(true); glowStroke(g, px, py, m + 1, tuneColor(cents, .95f), 2.6f, 10f); g.additive(false)
+        val match = (100 * (1 - min(1.0, abs(cents) / 50))).roundToInt(); lastMatch = match
+        val label = Music.nm(top.pc) + top.oct
+        g.text(label, cx, cy - w * .045f, w * .075f, Music.colO(top.pc, top.oct, 1f, 20f))
+        g.text(centsText(cents), cx, cy + w * .025f, w * .045f, tuneColor(cents), true, true)
+        g.text("$match% match", cx, cy + w * .07f, w * .03f, Music.rgba(200, 210, 235, .85f), true, true)
     }
 
     enum class Hit { MIC, SONG, STOP, NONE }
@@ -267,10 +348,6 @@ class Renderer {
             g.rect(cx - tw / 2 - 6, cy - w * .035f, tw + 12, w * .07f, Music.rgba(0, 0, 0, .6f)); g.text(name, cx, cy, ts, 0xffffffff.toInt()) }
         val sub = if (cons == null) "" else harmony.word + (b?.let { if (it.locked) " · locked" else " · " + String.format(java.util.Locale.US, "%.1f Hz", it.hz) } ?: "")
         if (sub.isNotEmpty()) g.text(sub, cx, cy + w * .06f, w * .03f, Music.rgba(200, 210, 235, .85f), true, true)
-        if (now < toastUntil) { val ts = w * .034f; val lines = toastText.split('\n')
-            lines.forEachIndexed { i, line -> val tw = g.textWidth(line, ts); val y = cy - w / 2 + w * (.76f + .062f * i)
-                g.rect(cx - tw / 2 - 10, y - w * .031f, tw + 20, w * .062f, Music.rgba(17, 26, 48, .9f))
-                g.text(line, cx, y, ts, 0xff6ee7d8.toInt()) } }
     }
 
 
