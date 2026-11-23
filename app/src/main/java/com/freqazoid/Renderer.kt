@@ -34,6 +34,25 @@ class Renderer {
     var wavePoints = 420
     private val tSlice = .020   // every note shows the same 20 ms of real time
 
+    // ---- tuner: how close the strongest note is to its exact pitch (A4 = 440 Hz) ----
+    private var tunerMidi = -1; private var tunerCents = 0.0
+    var tuner: Pair<Int, Double>? = null; private set
+    companion object Tuner {
+        const val IN_TUNE = 10.0   // within ±10 cents: green
+        const val CLOSE = 25.0     // within ±25 cents: yellow; beyond: red
+        fun tuneColor(c: Double, a: Float = 1f): Int = when {
+            abs(c) <= IN_TUNE -> Music.rgba(124, 242, 154, a); abs(c) <= CLOSE -> Music.rgba(255, 209, 102, a); else -> Music.rgba(255, 93, 115, a) }
+        fun centsText(c: Double): String { val r = c.roundToInt(); return if (r == 0) "±0¢" else (if (r > 0) "+" else "−") + abs(r) + "¢" }
+        const val SAMPLE_RATE = 48000
+    }
+    private fun updateTuner(notes: List<Note>, dt: Double) {
+        val top = notes.maxByOrNull { it.strength }
+        if (top == null) { tunerMidi = -1; tuner = null; return }
+        // light smoothing (~0.1 s) so the number is readable; the arc on the wheel stays instant
+        tunerCents = if (top.midi == tunerMidi) tunerCents + (top.cents - tunerCents) * min(1.0, dt / .1) else top.cents
+        tunerMidi = top.midi; tuner = top.midi to tunerCents
+    }
+
     fun toast(t: String, now: Double) { toastText = t; toastUntil = now + 2.2 }
 
     // geometry (W = face diameter)
@@ -51,6 +70,7 @@ class Renderer {
         val notes = f.notes
         chord = Music.nameChord(notes)
         harmony.update(notes, dt)
+        updateTuner(notes, dt)
         g.fill(0xff050812.toInt())
         if (overlay) drawOverlay(g, f) else drawWheel(g, f, now)
         drawRim(g, notes, now)
@@ -172,7 +192,7 @@ class Renderer {
                 g.circle(x + r0 * cos(pen), y + r0 * sin(pen), 1.8f, Music.colO(n.pc, n.oct, .95f, 30f))
                 if (n.midi !in lastActive && s > .3f) ripples += Ripple(n.midi, n.pc, n.oct, now, r0 + amp)
             }
-            if (abs(n.cents) > 3) { val da = (n.cents / 100 * (PI / 6)).toFloat(); g.arc(cx, cy, ringR(n.oct), a, da, 0xbfffffff.toInt(), 2f) }
+            if (abs(n.cents) > 3) { val da = (n.cents / 100 * (PI / 6)).toFloat(); g.arc(cx, cy, ringR(n.oct), a, da, tuneColor(n.cents, .9f), 2.5f) }
         }
         lastActive.clear(); lastActive += act
         val ls = max(9f, r * .045f)
@@ -217,6 +237,17 @@ class Renderer {
             g.circle(cx + rr * cos(a), cy + rr * sin(a), w * .017f + 4, 0x40ffffff); g.circle(cx + rr * cos(a), cy + rr * sin(a), w * .017f, 0xffffffff.toInt()) }
         val b = harmony.beat
         if (b != null && !b.locked) g.circle(cx, cy, w / 2 - 2, Music.rgba(255, 255, 255, .05f + .55f * b.pulse), 3 + w * .012f * b.pulse)
+        tuner?.let { (m, c) ->
+            val label = Music.nm(m % 12) + (m / 12 - 1) + "  " + centsText(c)
+            val ts = w * .05f; val tw = g.textWidth(label, ts, true, true); val y = cy - w * .105f
+            g.rect(cx - tw / 2 - 8, y - w * .032f, tw + 16, w * .064f, Music.rgba(0, 0, 0, .6f))
+            g.text(label, cx, y, ts, tuneColor(c), true, true)
+            // small needle: centre = exact pitch, ends = ±50¢
+            val nw = w * .16f; val ny = y + w * .043f
+            g.line(cx - nw / 2, ny, cx + nw / 2, ny, Music.rgba(200, 210, 235, .35f), 2f)
+            g.line(cx, ny - w * .012f, cx, ny + w * .012f, Music.rgba(200, 210, 235, .7f), 1.5f)
+            g.circle(cx + (c.coerceIn(-50.0, 50.0) / 50 * nw / 2).toFloat(), ny, w * .011f, tuneColor(c))
+        }
         val name = chord.name
         if (name != "—") { val ts = w * .055f; val tw = g.textWidth(name, ts)
             g.rect(cx - tw / 2 - 6, cy - w * .035f, tw + 12, w * .07f, Music.rgba(0, 0, 0, .6f)); g.text(name, cx, cy, ts, 0xffffffff.toInt()) }
@@ -228,5 +259,5 @@ class Renderer {
                 g.text(line, cx, y, ts, 0xff6ee7d8.toInt()) } }
     }
 
-    companion object { const val SAMPLE_RATE = 48000 }
+
 }
