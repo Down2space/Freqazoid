@@ -114,19 +114,33 @@ class Renderer {
         g.poly(xs, ys, n, color, width, fill)
     }
 
-    /** Trace the note's isolated wave around a circle like an oscilloscope bent into a ring. Returns pen angle. */
-    private fun waveRing(buf: FloatArray, sampleRate: Int, audioTime: Double, x: Float, y: Float, r0: Float, a: Float): Float {
-        val l = buf.size; val span = min(l - 2, (tSlice * sampleRate).roundToInt())
-        var mx = 1e-6f; for (i in l - span until l) mx = max(mx, abs(buf[i]))
-        val pen = (2 * PI * ((audioTime / tSlice) % 1) - PI / 2).toFloat()
+    /**
+     * Trace the note's isolated wave around a circle like an oscilloscope bent into a ring. Returns pen angle.
+     * The loop covers a WHOLE number of the note's own waves (≈20 ms, from the pitch actually heard), so the
+     * line's end meets its start seamlessly; the wave still moves and wobbles as before.
+     */
+    private fun waveRing(buf: FloatArray, sampleRate: Int, audioTime: Double, x: Float, y: Float, r0: Float, a: Float, freq: Double? = null): Float {
+        val l = buf.size
+        val span: Double = if (freq != null && freq > 0) {
+            val cycles = max(1, (tSlice * freq).roundToInt()); min((l - 3).toDouble(), cycles * sampleRate / freq)
+        } else min(l - 3, (tSlice * sampleRate).roundToInt()).toDouble()
+        val spanSec = span / sampleRate
+        var mx = 1e-6f; for (i in l - 1 - span.toInt() until l) mx = max(mx, abs(buf[i]))
+        val pen = (2 * PI * ((audioTime / spanSec) % 1) - PI / 2).toFloat()
         val m = wavePoints
         for (j in 0..m) {
-            val back = j.toFloat() / m; val th = pen - back * 2 * PI.toFloat()
-            val v = buf[l - 1 - (back * span).roundToInt()] / mx
+            val back = j.toDouble() / m; val th = pen - (back * 2 * PI).toFloat()
+            val pos = (l - 1) - back * span; val i0 = pos.toInt(); val fr = (pos - i0).toFloat()
+            val v = (buf[i0] + (buf[min(l - 1, i0 + 1)] - buf[i0]) * fr) / mx   // in-between samples interpolated
             val rr = r0 + a * v; px[j] = x + rr * cos(th); py[j] = y + rr * sin(th)
         }
         return pen
     }
+
+    /** Gap between the start and end of the most recently drawn wave line (for tests). */
+    fun lastSeamGap(): Float = hypot(px[0] - px[wavePoints], py[0] - py[wavePoints])
+    /** Largest step between neighbouring points of that line (for tests). */
+    fun lastMaxStep(): Float { var m = 0f; for (j in 1..wavePoints) m = max(m, hypot(px[j] - px[j - 1], py[j] - py[j - 1])); return m }
 
     private fun drawStatic(g: Gfx) {
         for (o in 1..7) g.circle(cx, cy, ringR(o), if (o % 2 == 1) Music.rgba(110, 130, 180, .22f) else Music.rgba(110, 130, 180, .13f), 1f)
@@ -187,7 +201,7 @@ class Renderer {
             g.circle(x, y, r0, Music.colO(n.pc, n.oct, .35f), .8f)
             val buf = f.waves[n.midi]
             if (buf != null) {
-                val pen = waveRing(buf, SAMPLE_RATE, f.audioTime, x, y, r0, amp)
+                val pen = waveRing(buf, SAMPLE_RATE, f.audioTime, x, y, r0, amp, n.freq)
                 glowStroke(g, px, py, wavePoints + 1, Music.colO(n.pc, n.oct, if (solid) .7f + .3f * s else .35f, 16f), 1.6f, 4f + 8 * s)
                 g.circle(x + r0 * cos(pen), y + r0 * sin(pen), 1.8f, Music.colO(n.pc, n.oct, .95f, 30f))
                 if (n.midi !in lastActive && s > .3f) ripples += Ripple(n.midi, n.pc, n.oct, now, r0 + amp)
@@ -209,7 +223,7 @@ class Renderer {
         for (n in list) {
             val buf = f.waves[n.midi] ?: continue
             val a = min(base * (.08f + .3f * n.strength), base * .32f)
-            val pen = waveRing(buf, SAMPLE_RATE, f.audioTime, cx, cy, base, a)
+            val pen = waveRing(buf, SAMPLE_RATE, f.audioTime, cx, cy, base, a, n.freq)
             val fill = Music.colO(n.pc, n.oct, (.05f + .05f * n.strength) * min(1f, 3f / list.size), 4f)
             glowStroke(g, px, py, wavePoints + 1, Music.colO(n.pc, n.oct, min(.95f, .45f + 1.5f / list.size), 14f), if (list.size > 4) 1.6f else 2.2f, 10f, fill)
             g.circle(cx + base * cos(pen), cy + base * sin(pen), 3f, Music.colO(n.pc, n.oct, 1f, 30f))
@@ -220,7 +234,7 @@ class Renderer {
             g.circle(cx, cy, pr, Music.rgba(255, 255, 255, (.08f + .6f * b.pulse) * .2f), 2 + 8 * b.pulse + 4 + 10 * b.pulse)
             g.circle(cx, cy, pr, Music.rgba(255, 255, 255, .08f + .6f * b.pulse), 2 + 8 * b.pulse) }
         // the total sound reaching your ears, same time slice (white)
-        val pen = waveRing(f.raw, SAMPLE_RATE, f.audioTime, cx, cy, base, base * .42f)
+        val pen = waveRing(f.raw, SAMPLE_RATE, f.audioTime, cx, cy, base, base * .42f, list.maxByOrNull { it.strength }?.freq)
         @Suppress("UNUSED_VARIABLE") val unused = pen
         glowStroke(g, px, py, wavePoints + 1, Music.rgba(255, 255, 255, .9f), 1.6f, 6f)
     }

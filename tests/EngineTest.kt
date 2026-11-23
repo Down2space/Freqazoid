@@ -90,5 +90,14 @@ fun main() {
         repeat((2 * 48000) / 512) { for (k in b.indices) { val i = t + k; b[k] = (listOf(261.63, 329.63, 392.0).sumOf { .1 * sin(2 * PI * it * i / 48000.0) } + room(i)).toFloat() }; t += 512; p.feed(b, 512) }
         val f = p.newFrame(); p.snapshot(f); check(f.notes.map { it.midi }.containsAll(listOf(60, 64, 67))) { "chord in the room: ${f.notes}" }
         println("ok 8 room: quiet room with hum -> 0 notes in $frames frames; a chord played in that room -> all notes shown") }
+    // 9. Every star's line closes seamlessly: start meets end, for notes across octaves, in and out of tune.
+    run { val img = BufferedImage(450, 450, BufferedImage.TYPE_INT_ARGB); var worst = 0f
+        for (m in listOf(36, 48, 60, 61, 69, 72, 84, 96)) for (det in listOf(0.0, 12.0, -37.0)) {
+            val q = Processor(48000); q.setSource(Source.DEMO); q.synth.play(listOf(m), hold = 5.0, detTop = det); val b = FloatArray(512)
+            repeat(120) { q.synth.render(b, 512); q.feed(b, 512) }
+            val f = q.newFrame(); q.snapshot(f); val r = Renderer(); r.draw(Java2dGfx(img), 450f, 450f, f, 1.0, 1 / 30.0)
+            val ratio = r.lastSeamGap() / max(1e-3f, r.lastMaxStep()); worst = max(worst, ratio)
+            check(ratio < 1.5f) { "seam on midi $m det $det: gap ${r.lastSeamGap()} vs step ${r.lastMaxStep()}" } }
+        println("ok 9 seamless stars: start meets end for C2–C7, in tune, +12¢ and −37¢ (worst seam = %.2f × a normal step)".format(worst)) }
     println("PASS: Freqazoid engine — detection, drum filter, chord names, consonance, beats, tour, waves, renderer")
 }
